@@ -179,20 +179,13 @@
             </div>
             
             <div class="controls">
-                <div class="file-input">
-                    <label for="geojson-file">Carregar arquivo GeoJSON:</label>
-                    <input type="file" id="geojson-file" accept=".geojson,.json">
-                </div>
-                
                 <button class="btn" onclick="ajustarVista()">🗺️ Ajustar Vista</button>
                 <button class="btn" onclick="alternarCamada()">🎨 Alterar Mapa</button>
                 <button class="btn" onclick="exportarDados()">💾 Exportar</button>
                 
-                <div class="info-box">
-                    <strong>🔄 Carregamento automático...</strong><br>
-                    • Tentando carregar arquivo automaticamente<br>
-                    • Se não funcionar, use o upload acima<br>
-                    • Arquivo: <code>Geomorf_Pindaré.geojson</code>
+                <div class="info-box" id="status-info">
+                    <strong>🔄 Conectando ao GitHub...</strong><br>
+                    Carregando brunnosilllva/Dinamica
                 </div>
             </div>
         </div>
@@ -348,56 +341,43 @@
             }
         }
         
-        // Carregar automaticamente o arquivo GeoJSON
+        // Carregar automaticamente do GitHub
         async function carregarArquivoAutomatico() {
+            const statusInfo = document.getElementById('status-info');
+            
             try {
-                const response = await fetch('./Geomorf_Pindaré.geojson');
+                statusInfo.innerHTML = '<strong>🔄 Carregando do GitHub...</strong><br>Acessando brunnosilllva/Dinamica';
+                
+                // URL do arquivo no GitHub (raw)
+                const githubUrl = 'https://raw.githubusercontent.com/brunnosilllva/Dinamica/main/Geomorf_Pindaré.geojson';
+                
+                const response = await fetch(githubUrl);
+                
                 if (!response.ok) {
-                    throw new Error('Arquivo não encontrado');
+                    throw new Error(`Erro HTTP: ${response.status} - ${response.statusText}`);
                 }
+                
                 const geojsonData = await response.json();
+                
                 carregarGeoJSON(geojsonData);
+                
+                statusInfo.innerHTML = `
+                    <strong>✅ Dados carregados do GitHub!</strong><br>
+                    • ${geojsonData.features ? geojsonData.features.length : 0} unidades carregadas<br>
+                    • Clique nas áreas para detalhes<br>
+                    • Use os controles para navegar
+                `;
+                
             } catch (error) {
-                console.log('Tentando carregar do sistema de arquivos local...');
-                // Fallback para leitura direta do arquivo no navegador
-                try {
-                    const geojsonData = await window.fs.readFile('E:/prog/Dinamica/Dados/Geomorf_Pindaré.geojson', { encoding: 'utf8' });
-                    const parsedData = JSON.parse(geojsonData);
-                    carregarGeoJSON(parsedData);
-                } catch (fsError) {
-                    console.log('Aguardando upload manual do arquivo...');
-                    document.querySelector('.info-box').innerHTML = `
-                        <strong>⚠️ Arquivo não encontrado automaticamente</strong><br>
-                        Por favor, use o botão de upload acima para carregar:<br>
-                        <code>Geomorf_Pindaré.geojson</code>
-                    `;
-                }
+                console.error('Erro ao carregar do GitHub:', error);
+                statusInfo.innerHTML = `
+                    <strong>❌ Erro ao carregar do GitHub</strong><br>
+                    Verifique se o repositório brunnosilllva/Dinamica<br>
+                    está público e o arquivo existe<br>
+                    <small>Erro: ${error.message}</small>
+                `;
             }
         }
-
-        // Event listener para upload de arquivo (mantido como backup)
-        document.getElementById('geojson-file').addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    try {
-                        const geojsonData = JSON.parse(e.target.result);
-                        carregarGeoJSON(geojsonData);
-                        // Atualizar info box
-                        document.querySelector('.info-box').innerHTML = `
-                            <strong>✅ Arquivo carregado com sucesso!</strong><br>
-                            • Clique nas áreas para ver detalhes<br>
-                            • Navigate com mouse/touch<br>
-                            • Use os controles ao lado
-                        `;
-                    } catch (error) {
-                        alert('Erro ao ler o arquivo. Certifique-se de que é um GeoJSON válido.');
-                    }
-                };
-                reader.readAsText(file);
-            }
-        });
         
         // Funções dos botões
         function ajustarVista() {
