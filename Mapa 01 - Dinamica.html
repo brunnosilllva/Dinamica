@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mapa de Unidades Geomorfológicas</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Arial', sans-serif;
+            background-color: #f0f0f0;
+        }
+        
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+        
+        .sidebar {
+            width: 350px;
+            background: white;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+            z-index: 1000;
+            overflow-y: auto;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            margin: 0;
+            font-size: 1.4em;
+            font-weight: bold;
+        }
+        
+        .header p {
+            margin: 8px 0 0 0;
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+        
+        .legend {
+            padding: 20px;
+        }
+        
+        .legend h3 {
+            margin: 0 0 15px 0;
+            color: #2d3748;
+            font-size: 1.1em;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 8px;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 12px;
+            padding: 8px;
+            border-radius: 6px;
+            transition: background-color 0.2s;
+        }
+        
+        .legend-item:hover {
+            background-color: #f7fafc;
+        }
+        
+        .legend-color {
+            width: 25px;
+            height: 20px;
+            border-radius: 3px;
+            margin-right: 12px;
+            border: 1px solid #cbd5e0;
+            flex-shrink: 0;
+        }
+        
+        .legend-text {
+            flex: 1;
+        }
+        
+        .legend-label {
+            font-weight: 600;
+            color: #2d3748;
+            font-size: 0.85em;
+            line-height: 1.2;
+        }
+        
+        .legend-percent {
+            color: #718096;
+            font-size: 0.8em;
+            margin-top: 2px;
+        }
+        
+        .controls {
+            padding: 20px;
+            border-top: 1px solid #e2e8f0;
+        }
+        
+        .btn {
+            background: #4a5568;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 8px;
+            margin-bottom: 8px;
+            font-size: 0.85em;
+            transition: background-color 0.2s;
+        }
+        
+        .btn:hover {
+            background: #2d3748;
+        }
+        
+        .file-input {
+            margin-bottom: 15px;
+        }
+        
+        .file-input input {
+            width: 100%;
+            padding: 8px;
+            border: 2px dashed #cbd5e0;
+            border-radius: 4px;
+            background: #f7fafc;
+        }
+        
+        #map {
+            flex: 1;
+            height: 100vh;
+        }
+        
+        .info-box {
+            background: white;
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 15px;
+            border-left: 4px solid #4a5568;
+            font-size: 0.85em;
+        }
+        
+        .leaflet-popup-content {
+            font-family: Arial, sans-serif;
+        }
+        
+        .popup-title {
+            font-weight: bold;
+            color: #2d3748;
+            margin-bottom: 8px;
+        }
+        
+        .popup-info {
+            color: #4a5568;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <div class="header">
+                <h1>Unidades Geomorfológicas</h1>
+                <p>Bacia do Rio Pindaré</p>
+            </div>
+            
+            <div class="legend">
+                <h3>Legenda</h3>
+                <div id="legend-items">
+                    <!-- Legenda será preenchida dinamicamente -->
+                </div>
+            </div>
+            
+            <div class="controls">
+                <div class="file-input">
+                    <label for="geojson-file">Carregar arquivo GeoJSON:</label>
+                    <input type="file" id="geojson-file" accept=".geojson,.json">
+                </div>
+                
+                <button class="btn" onclick="ajustarVista()">🗺️ Ajustar Vista</button>
+                <button class="btn" onclick="alternarCamada()">🎨 Alterar Mapa</button>
+                <button class="btn" onclick="exportarDados()">💾 Exportar</button>
+                
+                <div class="info-box">
+                    <strong>🔄 Carregamento automático...</strong><br>
+                    • Tentando carregar arquivo automaticamente<br>
+                    • Se não funcionar, use o upload acima<br>
+                    • Arquivo: <code>Geomorf_Pindaré.geojson</code>
+                </div>
+            </div>
+        </div>
+        
+        <div id="map"></div>
+    </div>
+
+    <!-- Leaflet JavaScript -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <script>
+        // Configuração do mapa
+        let map = L.map('map').setView([-3.5, -45.0], 8);
+        
+        // Camadas de mapa
+        let mapLayers = {
+            openStreetMap: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }),
+            satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                attribution: '© Esri'
+            }),
+            terrain: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenTopoMap'
+            })
+        };
+        
+        let currentLayer = 'openStreetMap';
+        mapLayers[currentLayer].addTo(map);
+        
+        // Variáveis globais
+        let geojsonLayer = null;
+        let unidadesData = [];
+        
+        // Cores para as unidades geomorfológicas
+        const coresUnidades = {
+            'R1d - Planícies fluviomarinhas': '#87CEEB',
+            'R3a2 - Superfícies aplainadas degradadas': '#DAA520', 
+            'R4a1 - Domínio de colinas amplas e suaves': '#F08080',
+            'R2b3 - Planaltos': '#8B4513',
+            'R4b - Domínio de morros e serras baixas': '#A0522D',
+            'R2b2 - Baixos platôs dissecados': '#F5DEB3',
+            'R4f - Vales encaixados': '#2E8B57',
+            'R2b1 - Baixos platôs': '#FF8C00',
+            'R4e - Degraus estruturais e rebordos erosivos': '#FF6347',
+            'R4a2 - Domínio de colinas dissecadas e de morros baixos': '#DDA0DD',
+            'R1a - Planícies fluviais ou flúvio-lacustres': '#90EE90'
+        };
+        
+        // Percentuais das unidades (baseado na imagem)
+        const percentuaisUnidades = {
+            'R1d - Planícies fluviomarinhas': '1,65%',
+            'R3a2 - Superfícies aplainadas degradadas': '18,68%',
+            'R4a1 - Domínio de colinas amplas e suaves': '7,67%',
+            'R2b3 - Planaltos': '11,09%',
+            'R4b - Domínio de morros e serras baixas': '10,33%',
+            'R2b2 - Baixos platôs dissecados': '20,10%',
+            'R4f - Vales encaixados': '11,74%',
+            'R2b1 - Baixos platôs': '3,42%',
+            'R4e - Degraus estruturais e rebordos erosivos': '1%',
+            'R4a2 - Domínio de colinas dissecadas e de morros baixos': '10,79%',
+            'R1a - Planícies fluviais ou flúvio-lacustres': '2,18%'
+        };
+        
+        // Função para obter cor da unidade
+        function obterCor(nomeUnidade) {
+            return coresUnidades[nomeUnidade] || '#808080';
+        }
+        
+        // Função para estilizar as features
+        function estilizarFeature(feature) {
+            const nomeUnidade = feature.properties.nome || feature.properties.NOME || 
+                              feature.properties.unidade || feature.properties.UNIDADE ||
+                              'Unidade não identificada';
+            
+            return {
+                fillColor: obterCor(nomeUnidade),
+                weight: 1,
+                opacity: 0.8,
+                color: '#333333',
+                fillOpacity: 0.7
+            };
+        }
+        
+        // Função para criar popup
+        function criarPopup(feature, layer) {
+            const props = feature.properties;
+            const nomeUnidade = props.nome || props.NOME || props.unidade || props.UNIDADE || 'Não identificada';
+            const percentual = percentuaisUnidades[nomeUnidade] || 'N/A';
+            
+            let popupContent = `
+                <div class="popup-title">${nomeUnidade}</div>
+                <div class="popup-info">
+                    <strong>Percentual:</strong> ${percentual}<br>
+                    <strong>Tipo:</strong> Unidade Geomorfológica
+                </div>
+            `;
+            
+            // Adicionar outras propriedades se existirem
+            Object.keys(props).forEach(key => {
+                if (key !== 'nome' && key !== 'NOME' && key !== 'unidade' && key !== 'UNIDADE') {
+                    popupContent += `<br><strong>${key}:</strong> ${props[key]}`;
+                }
+            });
+            
+            layer.bindPopup(popupContent);
+        }
+        
+        // Função para criar a legenda
+        function criarLegenda() {
+            const legendContainer = document.getElementById('legend-items');
+            legendContainer.innerHTML = '';
+            
+            Object.entries(coresUnidades).forEach(([unidade, cor]) => {
+                const percentual = percentuaisUnidades[unidade] || '0%';
+                
+                const legendItem = document.createElement('div');
+                legendItem.className = 'legend-item';
+                legendItem.innerHTML = `
+                    <div class="legend-color" style="background-color: ${cor}"></div>
+                    <div class="legend-text">
+                        <div class="legend-label">${unidade}</div>
+                        <div class="legend-percent">${percentual}</div>
+                    </div>
+                `;
+                
+                legendContainer.appendChild(legendItem);
+            });
+        }
+        
+        // Função para carregar GeoJSON
+        function carregarGeoJSON(geojsonData) {
+            try {
+                // Remover camada anterior se existir
+                if (geojsonLayer) {
+                    map.removeLayer(geojsonLayer);
+                }
+                
+                // Criar nova camada GeoJSON
+                geojsonLayer = L.geoJSON(geojsonData, {
+                    style: estilizarFeature,
+                    onEachFeature: criarPopup
+                }).addTo(map);
+                
+                // Ajustar vista para mostrar todos os dados
+                map.fitBounds(geojsonLayer.getBounds());
+                
+                console.log('GeoJSON carregado com sucesso!');
+                
+            } catch (error) {
+                console.error('Erro ao carregar GeoJSON:', error);
+                alert('Erro ao carregar o arquivo GeoJSON. Verifique o formato do arquivo.');
+            }
+        }
+        
+        // Carregar automaticamente o arquivo GeoJSON
+        async function carregarArquivoAutomatico() {
+            try {
+                const response = await fetch('./Geomorf_Pindaré.geojson');
+                if (!response.ok) {
+                    throw new Error('Arquivo não encontrado');
+                }
+                const geojsonData = await response.json();
+                carregarGeoJSON(geojsonData);
+            } catch (error) {
+                console.log('Tentando carregar do sistema de arquivos local...');
+                // Fallback para leitura direta do arquivo no navegador
+                try {
+                    const geojsonData = await window.fs.readFile('E:/prog/Dinamica/Dados/Geomorf_Pindaré.geojson', { encoding: 'utf8' });
+                    const parsedData = JSON.parse(geojsonData);
+                    carregarGeoJSON(parsedData);
+                } catch (fsError) {
+                    console.log('Aguardando upload manual do arquivo...');
+                    document.querySelector('.info-box').innerHTML = `
+                        <strong>⚠️ Arquivo não encontrado automaticamente</strong><br>
+                        Por favor, use o botão de upload acima para carregar:<br>
+                        <code>Geomorf_Pindaré.geojson</code>
+                    `;
+                }
+            }
+        }
+
+        // Event listener para upload de arquivo (mantido como backup)
+        document.getElementById('geojson-file').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    try {
+                        const geojsonData = JSON.parse(e.target.result);
+                        carregarGeoJSON(geojsonData);
+                        // Atualizar info box
+                        document.querySelector('.info-box').innerHTML = `
+                            <strong>✅ Arquivo carregado com sucesso!</strong><br>
+                            • Clique nas áreas para ver detalhes<br>
+                            • Navigate com mouse/touch<br>
+                            • Use os controles ao lado
+                        `;
+                    } catch (error) {
+                        alert('Erro ao ler o arquivo. Certifique-se de que é um GeoJSON válido.');
+                    }
+                };
+                reader.readAsText(file);
+            }
+        });
+        
+        // Funções dos botões
+        function ajustarVista() {
+            if (geojsonLayer) {
+                map.fitBounds(geojsonLayer.getBounds());
+            }
+        }
+        
+        function alternarCamada() {
+            map.removeLayer(mapLayers[currentLayer]);
+            
+            if (currentLayer === 'openStreetMap') {
+                currentLayer = 'satellite';
+            } else if (currentLayer === 'satellite') {
+                currentLayer = 'terrain';
+            } else {
+                currentLayer = 'openStreetMap';
+            }
+            
+            mapLayers[currentLayer].addTo(map);
+        }
+        
+        function exportarDados() {
+            if (geojsonLayer) {
+                const dataStr = JSON.stringify(geojsonLayer.toGeoJSON(), null, 2);
+                const dataBlob = new Blob([dataStr], {type: 'application/json'});
+                const url = URL.createObjectURL(dataBlob);
+                
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = 'unidades_geomorfologicas_exportado.geojson';
+                link.click();
+                
+                URL.revokeObjectURL(url);
+            } else {
+                alert('Nenhum dado carregado para exportar.');
+            }
+        }
+        
+        // Inicializar mapa e carregar dados automaticamente
+        criarLegenda();
+        carregarArquivoAutomatico();
+        
+        // Adicionar controles do mapa
+        L.control.scale({
+            imperial: false,
+            metric: true,
+            position: 'bottomright'
+        }).addTo(map);
+        
+        console.log('Mapa inicializado. Tentando carregar Geomorf_Pindaré.geojson automaticamente...');
+    </script>
+</body>
+</html>
