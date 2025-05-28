@@ -1,3 +1,4 @@
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
@@ -27,6 +28,54 @@
             z-index: 1000;
             overflow-y: auto;
             border-right: 3px solid #2d5016;
+            transition: margin-left 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            position: relative;
+        }
+        
+        .sidebar.collapsed {
+            margin-left: -340px; /* Deixa só uma pequena parte visível */
+        }
+        
+        .toggle-btn {
+            position: absolute;
+            top: 50%;
+            right: -25px; /* Posiciona fora da sidebar */
+            width: 50px;
+            height: 80px;
+            background: linear-gradient(135deg, #2d5016 0%, #4a7c59 100%);
+            border: 3px solid white;
+            border-radius: 0 25px 25px 0;
+            color: white;
+            font-size: 18px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1001;
+            box-shadow: 2px 0 15px rgba(0,0,0,0.3);
+            transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            transform: translateY(-50%);
+        }
+        
+        .toggle-btn:hover {
+            background: linear-gradient(135deg, #1a3d1f 0%, #2d5016 100%);
+            transform: translateY(-50%) scale(1.05);
+            box-shadow: 3px 0 20px rgba(0,0,0,0.4);
+        }
+        
+        .toggle-btn.collapsed {
+            right: -25px;
+        }
+        
+        /* Ícone da seta animado */
+        .toggle-arrow {
+            transition: transform 0.3s ease;
+            font-size: 20px;
+            font-weight: bold;
+        }
+        
+        .sidebar.collapsed .toggle-arrow {
+            transform: rotate(180deg);
         }
         
         .header {
@@ -265,60 +314,19 @@
             font-size: 0.85em;
         }
         
-        .credits {
-            position: absolute;
-            bottom: 5px;
-            right: 10px;
-            background: rgba(255,255,255,0.9);
-            padding: 3px 8px;
-            border-radius: 3px;
-            font-size: 0.7em;
-            color: #2d5016;
-            border: 1px solid rgba(45, 80, 22, 0.3);
-            z-index: 1000;
-        }
-        
-        .btn {
-            background: #4a5568;
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 4px;
-            cursor: pointer;
-            margin-right: 8px;
-            margin-bottom: 8px;
-            font-size: 0.85em;
-            transition: background-color 0.2s;
-        }
-        
-        .btn:hover {
-            background: #2d3748;
-        }
-        
-        .file-input {
-            margin-bottom: 15px;
-        }
-        
-        .file-input input {
-            width: 100%;
-            padding: 8px;
-            border: 2px dashed #cbd5e0;
-            border-radius: 4px;
-            background: #f7fafc;
+        .developer-info {
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid #4a7c59;
+            font-size: 0.75em;
+            color: #4a7c59;
+            text-align: center;
         }
         
         #map {
             flex: 1;
             height: 100vh;
-        }
-        
-        .info-box {
-            background: white;
-            padding: 15px;
-            border-radius: 6px;
-            margin-top: 15px;
-            border-left: 4px solid #4a5568;
-            font-size: 0.85em;
+            transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
         }
         
         .leaflet-popup-content {
@@ -335,11 +343,32 @@
             color: #4a5568;
             font-size: 0.9em;
         }
+
+        /* Responsividade para telas menores */
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 300px;
+            }
+            
+            .sidebar.collapsed {
+                margin-left: -260px;
+            }
+            
+            .toggle-btn {
+                width: 40px;
+                height: 60px;
+                right: -20px;
+            }
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="sidebar">
+        <div class="sidebar" id="sidebar">
+            <button class="toggle-btn" id="toggleBtn" onclick="toggleSidebar()" title="Recolher/Expandir Menu">
+                <span class="toggle-arrow">◀</span>
+            </button>
+            
             <div class="header">
                 <h1>Unidades Geomorfológicas</h1>
                 <p>Bacia do Rio Pindaré - Maranhão</p>
@@ -391,7 +420,6 @@
         </div>
         
         <div id="map"></div>
-        <div class="credits">Desenvolvido por Pereira R.B, 2025</div>
     </div>
 
     <!-- Leaflet JavaScript -->
@@ -401,248 +429,12 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4/2.9.0/proj4.min.js"></script>
     
     <script>
-        // Aguardar carregamento do proj4 antes de executar
-        document.addEventListener('DOMContentLoaded', function() {
-            // Verificar se proj4 carregou
-            if (typeof proj4 === 'undefined') {
-                console.error('Proj4js não carregou. Tentando fallback...');
-                document.getElementById('status-info').innerHTML = `
-                    <strong>⚠️ Biblioteca de projeção não carregou</strong><br>
-                    Tentando carregar dados sem transformação...
-                `;
-                // Continuar sem transformação
-                inicializarMapa(false);
-            } else {
-                console.log('✅ Proj4js carregado com sucesso');
-                inicializarMapa(true);
-            }
-        });
-        
-        function inicializarMapa(comTransformacao) {
-        // Configuração do mapa
-        let map = L.map('map').setView([-3.5, -45.0], 8);
-        
-        // Camadas de mapa
-        let mapLayers = {
-            openStreetMap: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '© OpenStreetMap contributors'
-            }),
-            satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-                attribution: '© Esri'
-            }),
-            terrain: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-                attribution: '© OpenTopoMap'
-            })
-        };
-        
-        let currentLayer = 'openStreetMap';
-        mapLayers[currentLayer].addTo(map);
-        
         // Variáveis globais
-        let geojsonLayer = null;
-        let municipiosLayer = null;
-        let unidadesData = [];
+        let map, geojsonLayer, municipiosLayer;
+        let mapLayers = {};
+        let currentLayer = 'openStreetMap';
         
-        // Cores para as unidades geomorfológicas
-        const coresUnidades = {
-            'R1d - Planícies fluviomarinhas': '#87CEEB',
-            'R3a2 - Superfícies aplainadas degradadas': '#DAA520', 
-            'R4a1 - Domínio de colinas amplas e suaves': '#F08080',
-            'R2b3 - Planaltos': '#8B4513',
-            'R4b - Domínio de morros e serras baixas': '#A0522D',
-            'R2b2 - Baixos platôs dissecados': '#F5DEB3',
-            'R4f - Vales encaixados': '#2E8B57',
-            'R2b1 - Baixos platôs': '#FF8C00',
-            'R4e - Degraus estruturais e rebordos erosivos': '#FF6347',
-            'R4a2 - Domínio de colinas dissecadas e de morros baixos': '#DDA0DD',
-            'R1a - Planícies fluviais ou flúvio-lacustres': '#90EE90'
-        };
-        
-        // Percentuais das unidades (baseado na imagem)
-        const percentuaisUnidades = {
-            'R1d - Planícies fluviomarinhas': '1,65%',
-            'R3a2 - Superfícies aplainadas degradadas': '18,68%',
-            'R4a1 - Domínio de colinas amplas e suaves': '7,67%',
-            'R2b3 - Planaltos': '11,09%',
-            'R4b - Domínio de morros e serras baixas': '10,33%',
-            'R2b2 - Baixos platôs dissecados': '20,10%',
-            'R4f - Vales encaixados': '11,74%',
-            'R2b1 - Baixos platôs': '3,42%',
-            'R4e - Degraus estruturais e rebordos erosivos': '1%',
-            'R4a2 - Domínio de colinas dissecadas e de morros baixos': '10,79%',
-            'R1a - Planícies fluviais ou flúvio-lacustres': '2,18%'
-        };
-        
-        // Função para obter cor da unidade
-        function obterCor(nomeUnidade) {
-            return coresUnidades[nomeUnidade] || '#808080';
-        }
-        
-        // Função para estilizar as features baseado nos dados reais - CORRIGIDA
-        function estilizarFeature(feature) {
-            const props = feature.properties;
-            
-            // Tentar identificar a unidade geomorfológica pelos dados reais
-            let nomeUnidade = 'Unidade não identificada';
-            
-            // Mapear baseado no campo RELEVO - versão mais precisa e específica
-            if (props.RELEVO) {
-                const relevo = props.RELEVO.toLowerCase();
-                
-                // Mapeamento corrigido e mais específico
-                if (relevo.includes('superfícies aplainadas retocadas') || relevo.includes('superfícies aplainadas degradadas')) {
-                    nomeUnidade = 'R3a2 - Superfícies aplainadas degradadas';
-                } else if (relevo.includes('planícies flúvio-marinhas') || relevo.includes('planícies fluviomarinhas')) {
-                    nomeUnidade = 'R1d - Planícies fluviomarinhas';
-                } else if (relevo.includes('domínios de colinas amplas e suaves') || relevo.includes('domínio de colinas amplas e suaves')) {
-                    nomeUnidade = 'R4a1 - Domínio de colinas amplas e suaves';
-                } else if (relevo.includes('domínios de colinas') && !relevo.includes('amplas') && !relevo.includes('dissecadas')) {
-                    nomeUnidade = 'R4a1 - Domínio de colinas amplas e suaves'; // Assumindo que "Domínios de colinas" genérico é este
-                } else if (relevo.includes('planaltos') && !relevo.includes('baixos')) {  
-                    nomeUnidade = 'R2b3 - Planaltos';
-                } else if (relevo.includes('domínio de morros e de serras baixas') || relevo.includes('domínio de morros e serras baixas')) {
-                    nomeUnidade = 'R4b - Domínio de morros e serras baixas';
-                } else if (relevo.includes('baixos platôs dissecados')) {
-                    nomeUnidade = 'R2b2 - Baixos platôs dissecados';
-                } else if (relevo.includes('vales encaixados')) {
-                    nomeUnidade = 'R4f - Vales encaixados';
-                } else if (relevo.includes('baixos platôs') && !relevo.includes('dissecados')) {
-                    nomeUnidade = 'R2b1 - Baixos platôs';
-                } else if (relevo.includes('degraus estruturais') || relevo.includes('rebordos erosivos')) {
-                    nomeUnidade = 'R4e - Degraus estruturais e rebordos erosivos';
-                } else if (relevo.includes('domínio de colinas dissecadas') || relevo.includes('morros baixos')) {
-                    nomeUnidade = 'R4a2 - Domínio de colinas dissecadas e de morros baixos';
-                } else if (relevo.includes('planícies fluviais') || relevo.includes('flúvio-lacustres')) {
-                    nomeUnidade = 'R1a - Planícies fluviais ou flúvio-lacustres';
-                }
-            }
-            
-            // Se não conseguiu identificar, usar o campo RELEVO diretamente
-            if (nomeUnidade === 'Unidade não identificada' && props.RELEVO) {
-                nomeUnidade = props.RELEVO;
-            }
-            
-            return {
-                fillColor: obterCor(nomeUnidade),
-                weight: 0, // Remove bordas
-                opacity: 0,
-                color: 'transparent',
-                fillOpacity: 0.7
-            };
-        }
-        
-        // Função para criar popup com informações detalhadas e limpas
-        function criarPopup(feature, layer) {
-            const props = feature.properties;
-            
-            // Identificar unidade geomorfológica
-            let unidadeGeomorf = props.RELEVO || 'Não identificada';
-            
-            let popupContent = `
-                <div class="popup-title">${unidadeGeomorf}</div>
-                <div class="popup-info">
-                    <strong>Tipo:</strong> Unidade Geomorfológica<br>
-            `;
-            
-            // Adicionar informações específicas formatadas
-            if (props.DECLIVIDAD) {
-                popupContent += `<strong>Declividade:</strong> ${props.DECLIVIDAD}<br>`;
-            }
-            
-            if (props.AMP_TOPO) {
-                popupContent += `<strong>Amplitude do topo:</strong> ${props.AMP_TOPO}<br>`;
-            }
-            
-            if (props.RELEVO) {
-                popupContent += `<strong>Unidades Geomorfológicas:</strong> ${props.RELEVO}<br>`;
-            }
-            
-            if (props.Área || props.AREA || props.Area) {
-                const area = props.Área || props.AREA || props.Area;
-                popupContent += `<strong>Área da Feição Geomorfológica:</strong> ${area}<br>`;
-            }
-            
-            if (props.Area_Bacia) {
-                popupContent += `<strong>Área Bacia Hidrográfica:</strong> ${props.Area_Bacia}<br>`;
-            }
-            
-            if (props.F_pbacia) {
-                popupContent += `<strong>Mun. que possuem esta feição geomorfológica:</strong> ${props.F_pbacia}<br>`;
-                
-                // Adicionar Muni_pArea logo abaixo sem rótulo
-                if (props.Muni_pArea) {
-                    popupContent += `${props.Muni_pArea}<br>`;
-                }
-            }
-            
-            // Adicionar outras propriedades, excluindo as que não queremos mostrar
-            const camposExcluir = [
-                'RELEVO', 'DECLIVIDAD', 'AMP_TOPO', 'Área', 'AREA', 'Area', 
-                'Area_Bacia', 'F_pbacia', 'Muni_pArea',
-                'OBJECTID', 'Shape_Leng', 'Shape_Area' // Excluir campos técnicos
-            ];
-            
-            Object.keys(props).forEach(key => {
-                if (!camposExcluir.includes(key)) {
-                    if (props[key] !== null && props[key] !== undefined && props[key] !== '') {
-                        popupContent += `<strong>${key}:</strong> ${props[key]}<br>`;
-                    }
-                }
-            });
-            
-            popupContent += '</div>';
-            
-            layer.bindPopup(popupContent);
-        }
-        
-        // Função para criar a legenda
-        function criarLegenda() {
-            const legendContainer = document.getElementById('legend-items');
-            legendContainer.innerHTML = '';
-            
-            Object.entries(coresUnidades).forEach(([unidade, cor]) => {
-                const percentual = percentuaisUnidades[unidade] || '0%';
-                
-                const legendItem = document.createElement('div');
-                legendItem.className = 'legend-item';
-                legendItem.innerHTML = `
-                    <div class="legend-color" style="background-color: ${cor}"></div>
-                    <div class="legend-text">
-                        <div class="legend-label">${unidade}</div>
-                        <div class="legend-percent">${percentual}</div>
-                    </div>
-                `;
-                
-                legendContainer.appendChild(legendItem);
-            });
-        }
-        
-        // Função para carregar GeoJSON
-        function carregarGeoJSON(geojsonData) {
-            try {
-                // Remover camada anterior se existir
-                if (geojsonLayer) {
-                    map.removeLayer(geojsonLayer);
-                }
-                
-                // Criar nova camada GeoJSON
-                geojsonLayer = L.geoJSON(geojsonData, {
-                    style: estilizarFeature,
-                    onEachFeature: criarPopup
-                }).addTo(map);
-                
-                // Ajustar vista para mostrar todos os dados
-                map.fitBounds(geojsonLayer.getBounds());
-                
-                console.log('GeoJSON carregado com sucesso!');
-                
-            } catch (error) {
-                console.error('Erro ao carregar GeoJSON:', error);
-                alert('Erro ao carregar o arquivo GeoJSON. Verifique o formato do arquivo.');
-            }
-        }
-        
-        // Lista de URLs possíveis para tentar - incluindo municípios
+        // URLs para carregar dados - movidas para escopo global
         const urlsGeomorfologia = [
             'https://raw.githubusercontent.com/brunnosilllva/Dinamica/main/Geomorf_Pindaré.geojson',
             'https://raw.githubusercontent.com/brunnosilllva/Dinamica/master/Geomorf_Pindaré.geojson'
@@ -652,64 +444,21 @@
             'https://raw.githubusercontent.com/brunnosilllva/Dinamica/main/Limites%20Municipais%20do%20Estado%20do%20Maranhão.json',
             'https://raw.githubusercontent.com/brunnosilllva/Dinamica/master/Limites%20Municipais%20do%20Estado%20do%20Maranhão.json'
         ];
-
-        // Carregar automaticamente do GitHub com múltiplas tentativas
-        async function carregarArquivoAutomatico() {
-            const statusInfo = document.getElementById('status-info');
-            
-            statusInfo.innerHTML = '<strong>🔄 Carregando dados ambientais...</strong><br>Processando unidades geomorfológicas...';
-            
-            // Carregar geomorfologia
-            await carregarDados(urlsGeomorfologia, 'geomorfologia');
-        }
         
-        // Função genérica para carregar dados
-        async function carregarDados(urls, tipo) {
-            const statusInfo = document.getElementById('status-info');
+        // Função para recolher/expandir sidebar - CORRIGIDA
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const toggleBtn = document.getElementById('toggleBtn');
             
-            for (let i = 0; i < urls.length; i++) {
-                try {
-                    const url = urls[i];
-                    console.log(`Tentando carregar ${tipo} - Tentativa ${i + 1}: ${url}`);
-                    
-                    const response = await fetch(url);
-                    
-                    if (response.ok) {
-                        const data = await response.json();
-                        
-                        if (tipo === 'geomorfologia') {
-                            // Verificar se é um GeoJSON válido
-                            if (!data.type || data.type !== 'FeatureCollection') {
-                                throw new Error('Formato GeoJSON inválido');
-                            }
-                            
-                            const dadosProcessados = verificarETransformarProjecao(data);
-                            carregarGeoJSON(dadosProcessados);
-                            
-                            statusInfo.innerHTML = `
-                                <strong>Projeção:</strong> WGS84 (padrão)<br>
-                                • Clique nas áreas para detalhes
-                            `;
-                        } else if (tipo === 'municipios') {
-                            carregarMunicipios(data);
-                        }
-                        
-                        return; // Sucesso, parar tentativas
-                    }
-                    
-                } catch (error) {
-                    console.log(`Tentativa ${i + 1} para ${tipo} falhou:`, error.message);
-                    continue; // Tentar próxima URL
+            sidebar.classList.toggle('collapsed');
+            toggleBtn.classList.toggle('collapsed');
+            
+            // Redimensionar mapa após animação
+            setTimeout(() => {
+                if (map) {
+                    map.invalidateSize();
                 }
-            }
-            
-            // Se chegou aqui, todas as tentativas falharam
-            if (tipo === 'geomorfologia') {
-                statusInfo.innerHTML = `
-                    <strong>❌ Não foi possível carregar dados</strong><br>
-                    Verifique a conexão com GitHub
-                `;
-            }
+            }, 400); // Tempo da animação CSS
         }
         
         // Função para carregar municípios
@@ -749,6 +498,251 @@
         }
         
         // Funções de controle de camadas
+        async function carregarDados(urls, tipo) {
+            const statusInfo = document.getElementById('status-info');
+            
+            for (let i = 0; i < urls.length; i++) {
+                try {
+                    const url = urls[i];
+                    console.log(`Tentando carregar ${tipo} - Tentativa ${i + 1}: ${url}`);
+                    
+                    const response = await fetch(url);
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        
+                        if (tipo === 'geomorfologia') {
+                            if (!data.type || data.type !== 'FeatureCollection') {
+                                throw new Error('Formato GeoJSON inválido');
+                            }
+                            
+                            const dadosProcessados = verificarETransformarProjecao(data);
+                            carregarGeoJSON(dadosProcessados);
+                            
+                            statusInfo.innerHTML = `
+                                <strong>✅ Dados carregados com sucesso!</strong><br>
+                                <strong>Projeção:</strong> WGS84 (padrão)<br>
+                                • Clique nas áreas para detalhes<br>
+                                • Use o botão ◀ para recolher o menu
+                                <div class="developer-info">
+                                    Desenvolvido por Pereira R.B, 2025
+                                </div>
+                            `;
+                        } else if (tipo === 'municipios') {
+                            carregarMunicipios(data);
+                        }
+                        
+                        return;
+                    }
+                    
+                } catch (error) {
+                    console.log(`Tentativa ${i + 1} para ${tipo} falhou:`, error.message);
+                    continue;
+                }
+            }
+            
+            if (tipo === 'geomorfologia') {
+                statusInfo.innerHTML = `
+                    <strong>❌ Não foi possível carregar dados</strong><br>
+                    Verifique a conexão com GitHub
+                    <div class="developer-info">
+                        Desenvolvido por Pereira R.B, 2025
+                    </div>
+                `;
+            }
+        }
+        
+        // Carregar dados automaticamente - movida para escopo global
+        async function carregarArquivoAutomatico() {
+            const statusInfo = document.getElementById('status-info');
+            statusInfo.innerHTML = '<strong>🔄 Carregando dados ambientais...</strong><br>Processando unidades geomorfológicas...';
+            
+            await carregarDados(urlsGeomorfologia, 'geomorfologia');
+        }
+        
+        // Função para carregar GeoJSON - movida para escopo global
+        function carregarGeoJSON(geojsonData) {
+            try {
+                if (geojsonLayer) {
+                    map.removeLayer(geojsonLayer);
+                }
+                
+                geojsonLayer = L.geoJSON(geojsonData, {
+                    style: estilizarFeature,
+                    onEachFeature: criarPopup
+                }).addTo(map);
+                
+                map.fitBounds(geojsonLayer.getBounds());
+                console.log('GeoJSON carregado com sucesso!');
+                
+            } catch (error) {
+                console.error('Erro ao carregar GeoJSON:', error);
+                alert('Erro ao carregar o arquivo GeoJSON. Verifique o formato do arquivo.');
+            }
+        }
+        
+        // Cores para as unidades geomorfológicas - movidas para escopo global
+        const coresUnidades = {
+            'R1d - Planícies fluviomarinhas': '#87CEEB',
+            'R3a2 - Superfícies aplainadas degradadas': '#DAA520', 
+            'R4a1 - Domínio de colinas amplas e suaves': '#F08080',
+            'R2b3 - Planaltos': '#8B4513',
+            'R4b - Domínio de morros e serras baixas': '#A0522D',
+            'R2b2 - Baixos platôs dissecados': '#F5DEB3',
+            'R4f - Vales encaixados': '#2E8B57',
+            'R2b1 - Baixos platôs': '#FF8C00',
+            'R4e - Degraus estruturais e rebordos erosivos': '#FF6347',
+            'R4a2 - Domínio de colinas dissecadas e de morros baixos': '#DDA0DD',
+            'R1a - Planícies fluviais ou flúvio-lacustres': '#90EE90'
+        };
+        
+        // Percentuais das unidades - movidos para escopo global
+        const percentuaisUnidades = {
+            'R1d - Planícies fluviomarinhas': '1,65%',
+            'R3a2 - Superfícies aplainadas degradadas': '18,68%',
+            'R4a1 - Domínio de colinas amplas e suaves': '7,67%',
+            'R2b3 - Planaltos': '11,09%',
+            'R4b - Domínio de morros e serras baixas': '10,33%',
+            'R2b2 - Baixos platôs dissecados': '20,10%',
+            'R4f - Vales encaixados': '11,74%',
+            'R2b1 - Baixos platôs': '3,42%',
+            'R4e - Degraus estruturais e rebordos erosivos': '1%',
+            'R4a2 - Domínio de colinas dissecadas e de morros baixos': '10,79%',
+            'R1a - Planícies fluviais ou flúvio-lacustres': '2,18%'
+        };
+        
+        // Função para obter cor da unidade - movida para escopo global
+        function obterCor(nomeUnidade) {
+            return coresUnidades[nomeUnidade] || '#808080';
+        }
+        
+        // Função para estilizar as features - movida para escopo global
+        function estilizarFeature(feature) {
+            const props = feature.properties;
+            let nomeUnidade = 'Unidade não identificada';
+            
+            if (props.RELEVO) {
+                const relevo = props.RELEVO.toLowerCase();
+                
+                if (relevo.includes('superfícies aplainadas retocadas') || relevo.includes('superfícies aplainadas degradadas')) {
+                    nomeUnidade = 'R3a2 - Superfícies aplainadas degradadas';
+                } else if (relevo.includes('planícies flúvio-marinhas') || relevo.includes('planícies fluviomarinhas')) {
+                    nomeUnidade = 'R1d - Planícies fluviomarinhas';
+                } else if (relevo.includes('domínios de colinas amplas e suaves') || relevo.includes('domínio de colinas amplas e suaves')) {
+                    nomeUnidade = 'R4a1 - Domínio de colinas amplas e suaves';
+                } else if (relevo.includes('domínios de colinas') && !relevo.includes('amplas') && !relevo.includes('dissecadas')) {
+                    nomeUnidade = 'R4a1 - Domínio de colinas amplas e suaves';
+                } else if (relevo.includes('planaltos') && !relevo.includes('baixos')) {  
+                    nomeUnidade = 'R2b3 - Planaltos';
+                } else if (relevo.includes('domínio de morros e de serras baixas') || relevo.includes('domínio de morros e serras baixas')) {
+                    nomeUnidade = 'R4b - Domínio de morros e serras baixas';
+                } else if (relevo.includes('baixos platôs dissecados')) {
+                    nomeUnidade = 'R2b2 - Baixos platôs dissecados';
+                } else if (relevo.includes('vales encaixados')) {
+                    nomeUnidade = 'R4f - Vales encaixados';
+                } else if (relevo.includes('baixos platôs') && !relevo.includes('dissecados')) {
+                    nomeUnidade = 'R2b1 - Baixos platôs';
+                } else if (relevo.includes('degraus estruturais') || relevo.includes('rebordos erosivos')) {
+                    nomeUnidade = 'R4e - Degraus estruturais e rebordos erosivos';
+                } else if (relevo.includes('domínio de colinas dissecadas') || relevo.includes('morros baixos')) {
+                    nomeUnidade = 'R4a2 - Domínio de colinas dissecadas e de morros baixos';
+                } else if (relevo.includes('planícies fluviais') || relevo.includes('flúvio-lacustres')) {
+                    nomeUnidade = 'R1a - Planícies fluviais ou flúvio-lacustres';
+                }
+            }
+            
+            if (nomeUnidade === 'Unidade não identificada' && props.RELEVO) {
+                nomeUnidade = props.RELEVO;
+            }
+            
+            return {
+                fillColor: obterCor(nomeUnidade),
+                weight: 0,
+                opacity: 0,
+                color: 'transparent',
+                fillOpacity: 0.7
+            };
+        }
+        
+        // Função para criar popup - movida para escopo global
+        function criarPopup(feature, layer) {
+            const props = feature.properties;
+            let unidadeGeomorf = props.RELEVO || 'Não identificada';
+            
+            let popupContent = `
+                <div class="popup-title">${unidadeGeomorf}</div>
+                <div class="popup-info">
+                    <strong>Tipo:</strong> Unidade Geomorfológica<br>
+            `;
+            
+            if (props.DECLIVIDAD) {
+                popupContent += `<strong>Declividade:</strong> ${props.DECLIVIDAD}<br>`;
+            }
+            
+            if (props.AMP_TOPO) {
+                popupContent += `<strong>Amplitude do topo:</strong> ${props.AMP_TOPO}<br>`;
+            }
+            
+            if (props.RELEVO) {
+                popupContent += `<strong>Unidades Geomorfológicas:</strong> ${props.RELEVO}<br>`;
+            }
+            
+            if (props.Área || props.AREA || props.Area) {
+                const area = props.Área || props.AREA || props.Area;
+                popupContent += `<strong>Área da Feição Geomorfológica:</strong> ${area}<br>`;
+            }
+            
+            if (props.Area_Bacia) {
+                popupContent += `<strong>Área Bacia Hidrográfica:</strong> ${props.Area_Bacia}<br>`;
+            }
+            
+            if (props.F_pbacia) {
+                popupContent += `<strong>Mun. que possuem esta feição geomorfológica:</strong> ${props.F_pbacia}<br>`;
+                
+                if (props.Muni_pArea) {
+                    popupContent += `${props.Muni_pArea}<br>`;
+                }
+            }
+            
+            const camposExcluir = [
+                'RELEVO', 'DECLIVIDAD', 'AMP_TOPO', 'Área', 'AREA', 'Area', 
+                'Area_Bacia', 'F_pbacia', 'Muni_pArea',
+                'OBJECTID', 'Shape_Leng', 'Shape_Area'
+            ];
+            
+            Object.keys(props).forEach(key => {
+                if (!camposExcluir.includes(key)) {
+                    if (props[key] !== null && props[key] !== undefined && props[key] !== '') {
+                        popupContent += `<strong>${key}:</strong> ${props[key]}<br>`;
+                    }
+                }
+            });
+            
+            popupContent += '</div>';
+            layer.bindPopup(popupContent);
+        }
+        
+        // Função para criar a legenda - movida para escopo global
+        function criarLegenda() {
+            const legendContainer = document.getElementById('legend-items');
+            legendContainer.innerHTML = '';
+            
+            Object.entries(coresUnidades).forEach(([unidade, cor]) => {
+                const percentual = percentuaisUnidades[unidade] || '0%';
+                
+                const legendItem = document.createElement('div');
+                legendItem.className = 'legend-item';
+                legendItem.innerHTML = `
+                    <div class="legend-color" style="background-color: ${cor}"></div>
+                    <div class="legend-text">
+                        <div class="legend-label">${unidade}</div>
+                        <div class="legend-percent">${percentual}</div>
+                    </div>
+                `;
+                
+                legendContainer.appendChild(legendItem);
+            });
+        }
         window.toggleGeomorfologia = function(mostrar) {
             if (geojsonLayer) {
                 if (mostrar) {
@@ -766,7 +760,6 @@
         window.toggleMunicipios = async function(mostrar) {
             if (mostrar) {
                 if (!municipiosLayer) {
-                    // Carregar municípios se ainda não foi carregado
                     await carregarDados(urlsMunicipios, 'municipios');
                 }
                 if (municipiosLayer && !map.hasLayer(municipiosLayer)) {
@@ -779,7 +772,7 @@
             }
         };
         
-        // Definir projeções (só se proj4 estiver disponível)
+        // Definir projeções
         let transformacaoDisponivel = false;
         
         if (typeof proj4 !== 'undefined') {
@@ -790,7 +783,7 @@
             transformacaoDisponivel = true;
         }
 
-        // Função para verificar e transformar projeção se necessário
+        // Função para verificar e transformar projeção
         function verificarETransformarProjecao(geojsonData) {
             const temCRS = geojsonData.crs && geojsonData.crs.properties;
             let dadosTransformados = { ...geojsonData };
@@ -799,27 +792,21 @@
                 const crsName = geojsonData.crs.properties.name;
                 console.log('CRS detectado:', crsName);
                 
-                // Verificar se é EPSG:31983 (SIRGAS 2000 UTM 23S)
                 if (crsName.includes('31983')) {
                     if (transformacaoDisponivel) {
                         console.log('🔄 Transformando de EPSG:31983 para WGS84...');
                         
                         dadosTransformados = transformarCoordenadas(geojsonData, 'EPSG:31983', 'EPSG:4326');
-                        
-                        // Remover CRS do resultado para usar WGS84 padrão
                         delete dadosTransformados.crs;
                         
                         console.log('✅ Transformação concluída!');
                     } else {
                         console.warn('⚠️ Proj4js não disponível. Coordenadas podem estar incorretas.');
-                        
-                        // Tentar conversão manual simples (aproximada)
                         dadosTransformados = tentarConversaoManual(geojsonData);
                     }
                 }
             }
             
-            // Verificar coordenadas após transformação
             if (dadosTransformados.features && dadosTransformados.features.length > 0) {
                 const primeiraFeature = dadosTransformados.features[0];
                 if (primeiraFeature.geometry && primeiraFeature.geometry.coordinates) {
@@ -829,18 +816,15 @@
                         const [lng, lat] = coords;
                         console.log('Coordenadas finais:', lat, lng);
                         
-                        // Verificar se está na região esperada (Maranhão/Pindaré)
                         const dentroRegiao = (lat >= -6 && lat <= -1) && (lng >= -48 && lng <= -42);
                         
                         if (dentroRegiao) {
                             console.log('✅ Coordenadas estão na região correta do Maranhão');
-                            // Centralizar mapa na região
                             map.setView([lat, lng], 9);
                         } else {
                             console.warn('⚠️ Coordenadas ainda fora da região esperada');
-                            // Se parece UTM, tentar centralizar na região do Maranhão mesmo assim
-                            if (Math.abs(lat) > 100) { // Parece ser UTM ainda
-                                map.setView([-3.5, -45.0], 8); // Centro aproximado do Maranhão
+                            if (Math.abs(lat) > 100) {
+                                map.setView([-3.5, -45.0], 8);
                             } else {
                                 map.setView([lat, lng], 8);
                             }
@@ -852,11 +836,11 @@
             return dadosTransformados;
         }
         
-        // Função para transformar coordenadas de um GeoJSON (só se proj4 disponível)
+        // Função para transformar coordenadas
         function transformarCoordenadas(geojson, origemCRS, destinoCRS) {
             if (!transformacaoDisponivel) return geojson;
             
-            const geojsonTransformado = JSON.parse(JSON.stringify(geojson)); // Deep copy
+            const geojsonTransformado = JSON.parse(JSON.stringify(geojson));
             
             function transformarGeometry(geometry) {
                 switch (geometry.type) {
@@ -902,7 +886,6 @@
                 }
             }
             
-            // Transformar todas as features
             if (geojsonTransformado.features) {
                 geojsonTransformado.features.forEach(feature => {
                     if (feature.geometry) {
@@ -914,20 +897,15 @@
             return geojsonTransformado;
         }
         
-        // Função fallback para conversão manual aproximada (UTM 23S para WGS84)
+        // Conversão manual aproximada
         function tentarConversaoManual(geojsonData) {
             console.log('⚠️ Usando conversão manual aproximada...');
             
-            // Esta é uma conversão muito aproximada para UTM Zone 23S
-            // Não é precisa, mas pode dar uma ideia da localização
             const geojsonConvertido = JSON.parse(JSON.stringify(geojsonData));
             
             function converterCoordenada([x, y]) {
-                // Conversão aproximada de UTM 23S para lat/lng
-                // Centro da zona UTM 23S: longitude -45°
                 const lng = -45 + (x - 500000) / 111320;
                 const lat = (y - 10000000) / 111320;
-                
                 return [lng, lat];
             }
             
@@ -987,7 +965,7 @@
             }
         }
         
-        // Função para ajustar transparência das unidades
+        // Função para ajustar transparência
         window.ajustarTransparencia = function(valor) {
             const transparencia = valor / 100;
             
@@ -1000,7 +978,7 @@
             }
         };
         
-        // Funções dos botões (agora dentro da função inicializarMapa)
+        // Funções dos botões
         window.ajustarVista = function() {
             if (geojsonLayer) {
                 map.fitBounds(geojsonLayer.getBounds());
@@ -1038,46 +1016,91 @@
             }
         };
         
-        // Inicializar mapa e carregar dados automaticamente
-        criarLegenda();
-        carregarArquivoAutomatico();
+        // Aguardar carregamento do proj4 antes de executar
+        document.addEventListener('DOMContentLoaded', function() {
+            // Verificar se proj4 carregou
+            if (typeof proj4 === 'undefined') {
+                console.error('Proj4js não carregou. Tentando fallback...');
+                document.getElementById('status-info').innerHTML = `
+                    <strong>⚠️ Biblioteca de projeção não carregou</strong><br>
+                    Tentando carregar dados sem transformação...
+                `;
+                inicializarMapa(false);
+            } else {
+                console.log('✅ Proj4js carregado com sucesso');
+                inicializarMapa(true);
+            }
+        });
         
-        // Adicionar controles do mapa
-        L.control.scale({
-            imperial: false,
-            metric: true,
-            position: 'bottomright'
-        }).addTo(map);
+        function inicializarMapa(comTransformacao) {
+            // Configuração do mapa
+            map = L.map('map').setView([-3.5, -45.0], 8);
+            
+            // Camadas de mapa
+            mapLayers = {
+                openStreetMap: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap contributors'
+                }),
+                satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                    attribution: '© Esri'
+                }),
+                terrain: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenTopoMap'
+                })
+            };
+            
+            currentLayer = 'openStreetMap';
+            mapLayers[currentLayer].addTo(map);
+            
+            // Inicializar
+            criarLegenda();
+            carregarArquivoAutomatico();
+            
+            // Adicionar controles do mapa
+            L.control.scale({
+                imperial: false,
+                metric: true,
+                position: 'bottomright'
+            }).addTo(map);
+            
+            // Adicionar indicador de norte
+            const northControl = L.control({position: 'topright'});
+            northControl.onAdd = function(map) {
+                const div = L.DomUtil.create('div', 'north-arrow');
+                div.innerHTML = `
+                    <div style="
+                        background: white;
+                        border: 2px solid #333;
+                        border-radius: 50%;
+                        width: 50px;
+                        height: 50px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        font-weight: bold;
+                        font-size: 18px;
+                        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+                        cursor: help;
+                    " title="Norte Geográfico">
+                        ↑<br><small style="font-size: 10px;">N</small>
+                    </div>
+                `;
+                return div;
+            };
+            northControl.addTo(map);
+            
+            console.log('Mapa inicializado. Tentando carregar Geomorf_Pindaré.geojson automaticamente...');
+        }
         
-        // Adicionar indicador de norte
-        const northControl = L.control({position: 'topright'});
-        northControl.onAdd = function(map) {
-            const div = L.DomUtil.create('div', 'north-arrow');
-            div.innerHTML = `
-                <div style="
-                    background: white;
-                    border: 2px solid #333;
-                    border-radius: 50%;
-                    width: 50px;
-                    height: 50px;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    font-weight: bold;
-                    font-size: 18px;
-                    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-                    cursor: help;
-                " title="Norte Geográfico">
-                    ↑<br><small style="font-size: 10px;">N</small>
-                </div>
-            `;
-            return div;
-        };
-        northControl.addTo(map);
-        
-        console.log('Mapa inicializado. Tentando carregar Geomorf_Pindaré.geojson automaticamente...');
-        
-        } // Fim da função inicializarMapa
+        // Atalho de teclado para toggle da sidebar
+        document.addEventListener('keydown', function(event) {
+            // Pressionar 'M' para toggle do menu
+            if (event.key === 'm' || event.key === 'M') {
+                if (!event.ctrlKey && !event.altKey && !event.shiftKey) {
+                    toggleSidebar();
+                }
+            }
+        });
     </script>
 </body>
 </html>
